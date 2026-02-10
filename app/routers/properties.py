@@ -7,7 +7,20 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.models.property import Property
-from app.schemas.property import PropertyCreate, PropertyResponse, PropertyUpdate, PropertyURLInput
+from app.schemas.property import (
+    PropertyCreate,
+    PropertyResponse,
+    PropertyUpdate,
+    PropertyURLInput,
+    PropertyExtractResponse,
+    PropertyExtracted,
+    PropertyType,
+    RiskLevel,
+    Condition,
+    ParkingType,
+)
+from app.services.listing_extraction import extract_listing
+from app.services.enrichment import enrich_property
 
 router = APIRouter()
 
@@ -120,14 +133,69 @@ async def delete_property(property_id: str, db: Session = Depends(get_db)):
 
 
 @router.post("/extract")
-async def extract_from_url(data: PropertyURLInput):
-    """
-    Placeholder for URL extraction.
-    In production, this would scrape/parse listing data from Zillow, Redfin, etc.
-    """
-    return {
-        "status": "extracted",
-        "url": data.url,
-        "message": "URL extraction is not yet implemented. Please use manual entry.",
-        "extracted_data": None,
-    }
+async def extract_from_url(data: PropertyURLInput) -> PropertyExtractResponse:
+    """Extract property details from a listing URL (API-first, scrape fallback) and enrich if possible."""
+
+    result = await extract_listing(data.url)
+    enriched = await enrich_property(result.data)
+
+    merged = {**result.data, **enriched.data}
+    confidence = {**result.confidence, **enriched.confidence}
+    sources = {**result.sources, **enriched.sources}
+
+    def _norm_state(s: str | None) -> str | None:
+        if not s:
+            return None
+        s = s.strip()
+        if len(s) == 2:
+            return s.upper()
+        # best-effort mapping for common full state names
+        states = {
+            "texas": "TX",
+            "california": "CA",
+            "new york": "NY",
+            "florida": "FL",
+            "washington": "WA",
+            "illinois": "IL",
+            "arizona": "AZ",
+            "colorado": "CO",
+            "georgia": "GA",
+            "north carolina": "NC",
+            "virginia": "VA",
+            "massachusetts": "MA",
+            "new jersey": "NJ",
+            "pennsylvania": "PA",
+            "ohio": "OH",
+            "michigan": "MI",
+        }
+        return states.get(s.lower())
+
+    extracted = PropertyExtracted(
+        address=merged.get("address"),
+        city=merged.get("city"),
+        state=_norm_state(merged.get("state")),
+        zip_code=merged.get("zip_code"),
+        price=merged.get("price"),
+        hoa_monthly=merged.get("hoa_monthly"),
+        property_type=PropertyType(merged["property_type"]) if merged.get("property_type") in {e.value for e in PropertyType} else None,
+        year_built=merged.get("year_built"),
+        beds=merged.get("beds"),
+        baths=merged.get("baths"),
+        sqft=merged.get("sqft"),
+        lot_size_sqft=merged.get("lot_size_sqft"),
+        parking=ParkingType(merged["parking"]) if merged.get("parking") in {e.value for e in ParkingType} else None,
+        condition=Condition(merged["condition"]) if merged.get("condition") in {e.value for e in Condition} else None,
+        school_rating=merged.get("school_rating"),
+        walk_score=merged.get("walk_score"),
+        fire_zone=RiskLevel(merged["fire_zone"]) if merged.get("fire_zone") in {e.value for e in RiskLevel} else None,
+        flood_zone=RiskLevel(merged["flood_zone"]) if merged.get("flood_zone") in {e.value for e in RiskLevel} else None,
+    )
+
+    return PropertyExtractResponse(
+        status="extracted",
+        url=data.url,
+        message=result.message,
+        extracted_data=extracted,
+        confidence=confidence,
+        sources=sources,
+    )

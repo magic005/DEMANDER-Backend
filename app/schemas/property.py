@@ -87,3 +87,33 @@ class PropertyUpdate(BaseModel):
 
 class PropertyURLInput(BaseModel):
     url: str = Field(..., min_length=10)
+
+
+class PropertyExtracted(BaseModel):
+    address: Optional[str] = None
+    city: Optional[str] = None
+    state: Optional[str] = None
+    zip_code: Optional[str] = None
+    price: Optional[float] = None
+    hoa_monthly: Optional[float] = None
+    property_type: Optional[PropertyType] = None
+    year_built: Optional[int] = None
+    beds: Optional[int] = None
+    baths: Optional[float] = None
+    sqft: Optional[float] = None
+    lot_size_sqft: Optional[float] = None
+    parking: Optional[ParkingType] = None
+    condition: Optional[Condition] = None
+    school_rating: Optional[float] = None
+    walk_score: Optional[int] = None
+    fire_zone: Optional[RiskLevel] = None
+    flood_zone: Optional[RiskLevel] = None
+
+
+class PropertyExtractResponse(BaseModel):
+    status: str
+    url: str
+    message: str
+    extracted_data: PropertyExtracted
+    confidence: dict
+    sources: dict

@@ -33,7 +33,7 @@ app/
 │   ├── property.py      # Property ORM model
 │   └── report.py        # Report ORM model
 ├── routers/
-│   ├── properties.py    # Property CRUD + URL extraction placeholder
+│   ├── properties.py    # Property CRUD + URL extraction
 │   ├── simulation.py    # Run simulation → auto-persist report
 │   └── reports.py       # Report retrieval + per-property listing
 ├── schemas/
@@ -67,7 +67,7 @@ DATABASE_URL=postgresql://user:password@localhost:5432/demander
 | GET | `/api/properties/{id}` | Get a single property |
 | PATCH | `/api/properties/{id}` | Update a property (partial) |
 | DELETE | `/api/properties/{id}` | Delete a property |
-| POST | `/api/properties/extract` | Extract from listing URL (placeholder) |
+| POST | `/api/properties/extract` | Extract from listing URL (API-first, scrape fallback + enrichment) |
 
 ### Simulation
 | Method | Endpoint | Description |
@@ -81,6 +81,30 @@ DATABASE_URL=postgresql://user:password@localhost:5432/demander
 | GET | `/api/reports/{id}` | Get a single report |
 | GET | `/api/reports/property/{property_id}` | All reports for a property |
 | DELETE | `/api/reports/{id}` | Delete a report |
+
+## Listing URL Extraction (optional providers)
+
+`POST /api/properties/extract` uses this fallback ladder:
+
+1. **Listings API (recommended)** if configured via environment variables
+2. **Best-effort scrape** (JSON-LD + simple regex heuristics)
+3. **Enrichment** using free geocoding (OpenStreetMap Nominatim) when an address is available
+
+### Environment Variables
+
+If you have a 3rd-party listings API, configure:
+
+```
+LISTING_API_URL_TEMPLATE=https://your-provider.example/extract?url={url}
+LISTING_API_KEY=your_key_here
+LISTING_API_KEY_HEADER=X-API-Key
+```
+
+Free enrichment toggle (defaults to enabled):
+
+```
+NOMINATIM_ENABLED=true
+```
 
 ## Simulation Engine
 
