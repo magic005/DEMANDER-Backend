@@ -27,4 +27,6 @@ class Report(Base):
     timeline_data = Column(JSON, nullable=False)
     price_sensitivity = Column(JSON, nullable=False)
     competitive_context = Column(JSON, nullable=False)
+    roi_analysis = Column(JSON, nullable=True)
+    market_research = Column(JSON, nullable=True)
     generated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))

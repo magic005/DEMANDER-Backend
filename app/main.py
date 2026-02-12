@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.config import CORS_ORIGINS
 from app.db import init_db
 from app.models import Property, Report  # noqa: F401 — registers models with Base
-from app.routers import properties, simulation, reports
+from app.routers import properties, simulation, reports, analysis
 
 
 @asynccontextmanager
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(properties.router, prefix="/api/properties", tags=["Properties"])
 app.include_router(simulation.router, prefix="/api/simulation", tags=["Simulation"])
 app.include_router(reports.router, prefix="/api/reports", tags=["Reports"])
+app.include_router(analysis.router, prefix="/api/analysis", tags=["Analysis"])
 
 
 @app.get("/api/health")

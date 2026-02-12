@@ -30,6 +30,8 @@ def _report_to_response(report: Report, prop: Property = None) -> dict:
         "timeline_data": report.timeline_data,
         "price_sensitivity": report.price_sensitivity,
         "competitive_context": report.competitive_context,
+        "roi_analysis": report.roi_analysis,
+        "market_research": report.market_research,
         "generated_at": report.generated_at.isoformat() if report.generated_at else "",
     }
     if prop:
