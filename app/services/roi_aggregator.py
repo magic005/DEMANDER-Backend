@@ -45,19 +45,22 @@ DEFAULT_PROPERTY_TAX_PCT = 1.10
 DEFAULT_INSURANCE_PCT = 0.35
 
 # Maintenance reserve — pct of home value per year
-MAINTENANCE_RESERVE_PCT = 1.0
+# 0.5% is typical for newer/good condition; would be 1%+ for older/poor condition
+MAINTENANCE_RESERVE_PCT = 0.5
 
 # Vacancy rate — pct of time property is vacant
 DEFAULT_VACANCY_PCT = 5.0
 
 # Price-to-rent ratio heuristic by property type
+# Lower ratio = higher rent relative to price = better for investors
+# These reflect realistic US rental market ratios (Zillow/Rentometer benchmarks)
 PRICE_TO_ANNUAL_RENT: Dict[str, float] = {
-    "single_family": 18.0,
-    "condo": 20.0,
-    "townhouse": 19.0,
-    "multi_family": 14.0,
+    "single_family": 13.0,
+    "condo": 15.0,
+    "townhouse": 14.0,
+    "multi_family": 10.0,
 }
-DEFAULT_PRICE_TO_RENT = 18.0
+DEFAULT_PRICE_TO_RENT = 13.0
 
 # Average annual appreciation by tier
 APPRECIATION_RATE_BY_PRICE: List[tuple] = [
@@ -91,54 +94,94 @@ def _appreciation_rate_for_price(price: float) -> float:
     return 2.5
 
 
-def _investment_grade(cap_rate: float, coc: float, cash_flow_monthly: float) -> str:
-    """Grade the investment A–F based on composite ROI metrics."""
+def _investment_grade(
+    cap_rate: float,
+    coc: float,
+    cash_flow_monthly: float,
+    total_return_yr1: float,
+    total_return_yr5: float,
+) -> str:
+    """Grade the investment A–F based on composite ROI metrics.
+
+    In a high-rate environment (6-7%+), negative cash flow is normal for
+    many properties.  The grade therefore weights *total return* (which
+    includes appreciation and equity buildup) alongside cash flow and
+    cap rate so that a property can still earn a decent grade even with
+    mildly negative cash flow if the long-term return story is strong.
+    """
     score = 0.0
-    # Cap rate scoring
+
+    # ── Cap rate scoring (0-20) ──
     if cap_rate >= 8.0:
-        score += 30
+        score += 20
     elif cap_rate >= 6.0:
-        score += 25
+        score += 17
     elif cap_rate >= 4.0:
-        score += 18
+        score += 14
     elif cap_rate >= 2.0:
         score += 10
     else:
-        score += 3
+        score += 5
 
-    # Cash-on-cash scoring
-    if coc >= 12.0:
-        score += 35
-    elif coc >= 8.0:
-        score += 28
-    elif coc >= 5.0:
+    # ── Cash-on-cash scoring (0-20) ──
+    if coc >= 10.0:
         score += 20
-    elif coc >= 2.0:
-        score += 12
+    elif coc >= 5.0:
+        score += 16
     elif coc >= 0:
+        score += 12
+    elif coc >= -5.0:
+        score += 8
+    elif coc >= -15.0:
+        score += 4
+    else:
+        score += 0
+
+    # ── Cash flow scoring (0-20) ──
+    if cash_flow_monthly >= 500:
+        score += 20
+    elif cash_flow_monthly >= 200:
+        score += 16
+    elif cash_flow_monthly >= 0:
+        score += 13
+    elif cash_flow_monthly >= -300:
+        score += 9
+    elif cash_flow_monthly >= -800:
         score += 5
     else:
-        score += 0
+        score += 2
 
-    # Cash flow scoring
-    if cash_flow_monthly >= 500:
-        score += 35
-    elif cash_flow_monthly >= 200:
-        score += 28
-    elif cash_flow_monthly >= 0:
-        score += 18
-    elif cash_flow_monthly >= -200:
+    # ── Total return Year-1 scoring (0-20) ──
+    if total_return_yr1 >= 15.0:
+        score += 20
+    elif total_return_yr1 >= 8.0:
+        score += 16
+    elif total_return_yr1 >= 3.0:
+        score += 12
+    elif total_return_yr1 >= 0:
         score += 8
     else:
-        score += 0
+        score += 3
+
+    # ── Total return Year-5 scoring (0-20) ──
+    if total_return_yr5 >= 50.0:
+        score += 20
+    elif total_return_yr5 >= 30.0:
+        score += 16
+    elif total_return_yr5 >= 15.0:
+        score += 12
+    elif total_return_yr5 >= 0:
+        score += 8
+    else:
+        score += 3
 
     if score >= 80:
         return "A"
     if score >= 65:
         return "B"
-    if score >= 45:
+    if score >= 50:
         return "C"
-    if score >= 25:
+    if score >= 35:
         return "D"
     return "F"
 
@@ -323,7 +366,7 @@ def compute_roi_analysis(
         else:
             break_even = 999
 
-    grade = _investment_grade(cap_rate, coc_return, monthly_cf)
+    grade = _investment_grade(cap_rate, coc_return, monthly_cf, total_return_yr1, total_return_yr5)
 
     roi_metrics = ROIMetrics(
         cap_rate_pct=cap_rate,
