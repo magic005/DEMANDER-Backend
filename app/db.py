@@ -25,4 +25,9 @@ def get_db():
 
 
 def init_db():
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        import sys
+        print(f"WARNING: Could not initialise database: {e}", file=sys.stderr)
+        print("The application will start but DB operations will fail until the database is reachable.", file=sys.stderr)
