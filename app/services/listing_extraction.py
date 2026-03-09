@@ -196,7 +196,7 @@ async def extract_listing(url: str) -> ExtractionResult:
             pass
 
     html = ""
-    scraperapi_key = os.getenv("SCRAPERAPI_KEY")
+    scraperapi_key = os.getenv("SCRAPERAPI_KEY", "9e9d7d8f020e9db4dc131a63c31a4d97")
 
     if scraperapi_key:
         try:
