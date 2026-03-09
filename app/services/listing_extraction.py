@@ -121,6 +121,55 @@ def _parse_basic_numbers(html: str) -> Dict[str, Any]:
 
 
 async def extract_listing(url: str) -> ExtractionResult:
+    # 1. Try RapidAPI Zillow.com API (Free tier available)
+    rapidapi_key = os.getenv("RAPIDAPI_KEY")
+    if rapidapi_key and "zillow.com" in url.lower():
+        try:
+            # Extract ZPID from URL
+            # e.g., https://www.zillow.com/homedetails/.../17154238_zpid/
+            zpid_match = re.search(r"/(\d+)_zpid", url)
+            if zpid_match:
+                zpid = zpid_match.group(1)
+                async with httpx.AsyncClient(timeout=20) as client:
+                    res = await client.get(
+                        "https://zillow-com1.p.rapidapi.com/property",
+                        params={"propertyKey": zpid},
+                        headers={
+                            "X-RapidAPI-Key": rapidapi_key,
+                            "X-RapidAPI-Host": "zillow-com1.p.rapidapi.com"
+                        }
+                    )
+                    if res.status_code == 200:
+                        payload = res.json()
+                        extracted: Dict[str, Any] = {}
+                        
+                        # Map RapidAPI response fields to our schema
+                        address = payload.get("address", {})
+                        extracted["address"] = address.get("streetAddress")
+                        extracted["city"] = address.get("city")
+                        extracted["state"] = address.get("state")
+                        extracted["zip_code"] = address.get("zipcode")
+                        
+                        extracted["price"] = payload.get("price")
+                        extracted["beds"] = payload.get("bedrooms")
+                        extracted["baths"] = payload.get("bathrooms")
+                        extracted["sqft"] = payload.get("livingArea")
+                        extracted["year_built"] = payload.get("yearBuilt")
+                        
+                        # Only keep non-None values
+                        extracted = {k: v for k, v in extracted.items() if v is not None}
+                        
+                        return ExtractionResult(
+                            data=extracted,
+                            confidence={k: 0.95 for k in extracted.keys()},
+                            sources={k: "rapidapi" for k in extracted.keys()},
+                            message="Extracted via RapidAPI"
+                        )
+        except Exception as e:
+            # Fall through to other extraction methods if API fails
+            pass
+
+    # 2. Try generic Listing API template (if configured)
     api_url_template = os.getenv("LISTING_API_URL_TEMPLATE")
     api_key = os.getenv("LISTING_API_KEY")
     api_header = os.getenv("LISTING_API_KEY_HEADER", "X-API-Key")
@@ -134,7 +183,6 @@ async def extract_listing(url: str) -> ExtractionResult:
                 payload = res.json()
 
             extracted: Dict[str, Any] = {}
-            # Accept either already-normalized or nested payloads.
             if isinstance(payload, dict):
                 extracted.update(payload.get("property", payload))
 
