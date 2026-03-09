@@ -195,25 +195,41 @@ async def extract_listing(url: str) -> ExtractionResult:
         except Exception:
             pass
 
-    try:
-        async with httpx.AsyncClient(
-            timeout=20,
-            headers={
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-            },
-            follow_redirects=True,
-        ) as client:
-            res = await client.get(url)
-            res.raise_for_status()
-            html = res.text
-    except Exception as e:
-        return ExtractionResult(
-            data={},
-            confidence={},
-            sources={},
-            message=f"Failed to fetch listing: {e}",
-        )
+    html = ""
+    scraperapi_key = os.getenv("SCRAPERAPI_KEY")
+
+    if scraperapi_key:
+        try:
+            async with httpx.AsyncClient(timeout=45) as client:
+                res = await client.get(
+                    "http://api.scraperapi.com",
+                    params={"api_key": scraperapi_key, "url": url, "render": "true"},
+                )
+                res.raise_for_status()
+                html = res.text
+        except Exception:
+            pass
+
+    if not html:
+        try:
+            async with httpx.AsyncClient(
+                timeout=20,
+                headers={
+                    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+                },
+                follow_redirects=True,
+            ) as client:
+                res = await client.get(url)
+                res.raise_for_status()
+                html = res.text
+        except Exception as e:
+            return ExtractionResult(
+                data={},
+                confidence={},
+                sources={},
+                message=f"Failed to fetch listing: {e}",
+            )
 
     jsonld = _parse_json_ld(html)
     basic = _parse_basic_numbers(html)
